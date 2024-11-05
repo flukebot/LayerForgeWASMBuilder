@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Blueprint WASM Test</title>
+    <script src="wasm_exec.js"></script>
+  </head>
+  <body>
+    <h1>Blueprint WASM Test</h1>
+    <button onclick="getBlueprintMethods()">Get Blueprint Methods</button>
+    <pre id="output"></pre>
+
+    <script>
+      const go = new Go();
+      let blueprintInstance;
+
+      async function loadWasm() {
+        const result = await WebAssembly.instantiateStreaming(
+          fetch("blueprint.wasm"),
+          go.importObject
+        );
+        go.run(result.instance);
+        blueprintInstance = result.instance;
+      }
+
+      async function getBlueprintMethods() {
+        const methodsJSON = await GetBlueprintMethodsJSON();
+        document.getElementById("output").textContent = methodsJSON;
+      }
+
+      loadWasm().catch(console.error);
+    </script>
+  </body>
+</html>
