@@ -5,6 +5,8 @@ import (
     "fmt"
     "reflect"
     "syscall/js"
+    "time"
+
     "blueprint" // Adjust the import path if necessary
 )
 
@@ -17,33 +19,42 @@ func methodWrapper(bp *blueprint.Blueprint, methodName string) js.Func {
         }
 
         methodType := method.Type()
-        numParams := methodType.NumIn()
-
         var inputs []reflect.Value
 
-        if numParams > 0 { // Method expects parameters
-            if len(args) == 0 {
-                return fmt.Sprintf("Method %s requires parameters but none were provided", methodName)
-            }
-
-            paramJSON := args[0].String()
+        // Check for no parameters
+        if len(args) == 0 && methodType.NumIn() == 0 {
+            inputs = []reflect.Value{}
+        } else if len(args) > 0 {
+            // If parameters are expected, parse the JSON input
             var paramValues []interface{}
+            paramJSON := args[0].String()
+
             if err := json.Unmarshal([]byte(paramJSON), &paramValues); err != nil {
                 return fmt.Sprintf("Invalid JSON input: %v", err)
             }
 
-            // Prepare reflect.Value inputs based on expected parameter types
-            inputs = make([]reflect.Value, numParams)
-            for i := 0; i < numParams; i++ {
-                if i < len(paramValues) {
-                    inputs[i] = reflect.ValueOf(paramValues[i])
-                } else {
-                    inputs[i] = reflect.Zero(methodType.In(i)) // Provide zero value for missing params
+            // Prepare inputs based on method's expected parameter types
+            for i, param := range paramValues {
+                expectedType := methodType.In(i)
+
+                switch expectedType.Kind() {
+                case reflect.Int:
+                    inputs = append(inputs, reflect.ValueOf(int(param.(float64))))
+                case reflect.Float64:
+                    inputs = append(inputs, reflect.ValueOf(param.(float64)))
+                case reflect.Bool:
+                    inputs = append(inputs, reflect.ValueOf(param.(bool)))
+                case reflect.String:
+                    inputs = append(inputs, reflect.ValueOf(param.(string)))
+                case reflect.TypeOf(time.Duration(0)).Kind():
+                    inputs = append(inputs, reflect.ValueOf(time.Duration(param.(float64))))
+                default:
+                    inputs = append(inputs, reflect.Zero(expectedType))
                 }
             }
         }
 
-        // Call the method with or without inputs, depending on numParams
+        // Call the method and capture results
         results := method.Call(inputs)
 
         // Format the results as JSON for output
